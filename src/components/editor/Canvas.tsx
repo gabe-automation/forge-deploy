@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { BLOCK_CSS, BREAKPOINTS, blockHtml, isContainer, isFlow, isPanel, panelCss, sanitizeHtml, scopeCss, styleObj, themeVars, type BlockType, type Breakpoint, type Theme } from "@/lib/blocks";
+import { BLOCK_CSS, BREAKPOINTS, blockHtml, isContainer, isFlow, isPanel, panelCss, panelClass, sanitizeHtml, scopeCss, styleObj, themeVars, type BlockType, type Breakpoint, type Theme } from "@/lib/blocks";
 import { pageHeight, type Geo, type NodeView } from "@/lib/model";
 import type { Cursor, Lease, NodeLock } from "@/lib/useRoom";
 import { snapGrid, type DragPrefs } from "@/lib/dragPrefs";
@@ -243,7 +243,7 @@ export function Canvas(p: Props) {
       <div
         key={n.id}
         data-node={n.id}
-        className={`wc-el group${panel ? ` wc-box wc-box-${n.type}` : ""}${inFlow ? " wc-flow" : ""}`}
+        className={`wc-el group${panel ? ` wc-box wc-box-${n.type}${panelClass(n.type, n.box)}` : ""}${inFlow ? " wc-flow" : ""}`}
         style={{
           left: g.x, top: g.y, width: g.w, height: g.h, zIndex: z,
           ...(panel ? { ...cssObj(panelCss(n.type, n.box)), ...ownStyle } : {}),
@@ -265,8 +265,8 @@ export function Canvas(p: Props) {
         {panel && custom && <div className="pointer-events-none" dangerouslySetInnerHTML={{ __html: custom }} />}
         {container && kids.length === 0 && (
           <div className="pointer-events-none absolute inset-0 grid place-items-center">
-            <span className="rounded-full border border-dashed border-primary/50 bg-card/80 px-3 py-1 text-center font-sans text-[11px] text-muted-foreground">
-              {n.type === "grid" ? "Drop blocks here · they fill the grid cells" : n.type === "flex" ? "Drop blocks here · they line up in a row" : n.type === "stack" ? "Drop blocks here · they stack top to bottom" : n.type === "absolute" ? "Drop blocks here · place them anywhere inside" : "Drop blocks here"}
+            <span className="text-center font-sans text-[11px] italic text-muted-foreground/80">
+              {n.type === "grid" ? "Drop blocks here · they fill the grid cells" : n.type === "flex" ? "Drop blocks here · they line up in a row" : n.type === "stack" ? "Drop blocks here · they stack top to bottom" : n.type === "absolute" ? "Drop blocks here · place them anywhere inside" : n.type === "section" ? "Drop blocks here · they stack inside this full-width band" : "Drop blocks here"}
             </span>
           </div>
         )}

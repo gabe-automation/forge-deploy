@@ -1,4 +1,4 @@
-import { BLOCKS, BLOCK_CSS, isFlow, isPanel, panelCss, scopeCss, BOX_KEYS, BREAKPOINTS, STYLE_KEYS, attrString, blockHtml, type BoxOpts, styleCss, themeVars, esc, type BlockStyle, type BlockType, type Breakpoint, type Theme } from "./blocks";
+import { panelClass, BLOCKS, BLOCK_CSS, isFlow, isPanel, panelCss, scopeCss, BOX_KEYS, BREAKPOINTS, STYLE_KEYS, attrString, blockHtml, type BoxOpts, styleCss, themeVars, esc, type BlockStyle, type BlockType, type Breakpoint, type Theme } from "./blocks";
 import { val, type Props } from "./crdt";
 
 export type Geo = { x: number; y: number; w: number; h: number };
@@ -116,7 +116,7 @@ export function generateExport(nodes: NodeView[], theme: Theme, title: string) {
       .join("\n");
     const inner = blockHtml(n.type, n, shortId(n.id)) + (n.html.trim() ? `\n${indent}  ${n.html.trim()}` : "");
     const par = n.parent ? byId.get(n.parent) : undefined;
-    const cls = ["wc-el", isPanel(n.type) ? `wc-box wc-box-${n.type}` : "", par && isFlow(par.type) ? "wc-flow" : ""].filter(Boolean).join(" ");
+    const cls = ["wc-el", isPanel(n.type) ? `wc-box wc-box-${n.type}${panelClass(n.type, n.box)}` : "", par && isFlow(par.type) ? "wc-flow" : ""].filter(Boolean).join(" ");
     return `${indent}<div class="${cls}" id="${shortId(n.id)}"${n.type === "input" ? "" : attrString(n.attrs)}>${inner ? `\n${indent}  ${inner}` : ""}${kids ? `\n${kids}` : ""}\n${indent}</div>`;
   };
   const body = topLevel.map((n) => renderEl(n, "    ")).join("\n");

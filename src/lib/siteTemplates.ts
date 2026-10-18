@@ -74,7 +74,10 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
       { type: "hero", text: "ASSEMBLY / 2026", sub: "Two days of conversation, discovery and new perspectives. Add your date and venue here.", label: "Explore the program", href: "#features", h: 570, attrs: { "data-cover": assemblyVenue }, style: { font: "sans" }, css: sn("css", "Fade in"), html: sn("html", "Countdown text"), script: sn("js", "Countdown") },
       { type: "heading", text: "A gathering worth showing up for.", h: 140 },
       { type: "cards", text: "01 / Connect|02 / Discover|03 / Make", sub: "Meet the people behind the ideas.|Hear fresh perspectives.|Leave with something new.", h: 330, css: sn("css", "Card hover"), script: sn("js", "Reveal on scroll") },
-      { type: "section", text: "October 16—17 · The Glasshouse", sub: "Doors open at 9:00. Talks, workshops and a shared table run throughout both days.", h: 260, style: { bg: "#e3efe1" } },
+      { type: "section", h: 260, w: 1200, style: { bg: "#e3efe1" }, box: { gap: 12 }, kids: [
+        { type: "heading", text: "October 16—17 · The Glasshouse", x: 0, y: 0, w: 1040, h: 60, css: "& .wc-heading { padding: 0; }" },
+        { type: "text", text: "Doors open at 9:00. Talks, workshops and a shared table run throughout both days.", x: 0, y: 0, w: 1040, h: 60 },
+      ] },
       { type: "button", label: "Reserve your place", href: "https://example.com/tickets", w: 260, h: 58, style: { shadow: true }, css: sn("css", "Lift on hover") + "\n" + sn("css", "Pill buttons"), script: sn("js", "Open in new tab") },
       { type: "testimonial", text: "Come curious. Leave inspired.", sub: "Your next chapter starts here", h: 220, style: { bg: "#f4ddd7" } },
       { type: "footer", text: "ASSEMBLY / 2026", sub: "Details and tickets coming soon.", h: 130 },
