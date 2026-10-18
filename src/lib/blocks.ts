@@ -9,6 +9,8 @@ export const isContainer = (t: BlockType) => CONTAINER_TYPES.includes(t);
 export const FLOW_TYPES: BlockType[] = ["flex", "grid", "stack", "section"];
 export const isFlow = (t: BlockType) => FLOW_TYPES.includes(t);
 /** Layout panels that render no content of their own — only their children. */
+/** Extra class for a panel: stacks/sections stretch children to full width by default. */
+export const panelClass = (type: BlockType, b: BoxOpts = {}) => (type === "stack" || type === "section") && (b.align ?? "stretch") === "stretch" ? " wc-stretch" : "";
 export const isPanel = (t: BlockType) => FLOW_TYPES.includes(t) || t === "absolute";
 
 /** Template photos ship as static files, so they load in the editor, previews, published sites and exports. */
@@ -264,7 +266,7 @@ export const BLOCK_CSS = `
 .wc-flow{position:relative!important;left:auto!important;top:auto!important;flex:0 0 auto;max-width:100%;}
 .wc-box-grid>.wc-flow{width:auto!important;min-width:0;}
 .wc-box-stack>.wc-flow,.wc-box-section>.wc-flow{max-width:100%;}
-.wc-box-stack[style*="align-items: stretch"]>.wc-flow,.wc-box-stack[style*="align-items:stretch"]>.wc-flow,.wc-box-section[style*="align-items: stretch"]>.wc-flow,.wc-box-section[style*="align-items:stretch"]>.wc-flow{width:auto!important;align-self:stretch;}
+.wc-stretch>.wc-flow{width:auto!important;align-self:stretch;}
 .wc-box-absolute{position:absolute;}
 .wc-box-absolute>.wc-el{position:absolute;}
 .wc-box-section{background:color-mix(in srgb,var(--wc-accent) 7%,var(--wc-surface));}
