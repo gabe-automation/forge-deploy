@@ -2,30 +2,29 @@ export type BlockType =
   | "navbar" | "hero" | "heading" | "text" | "button" | "image" | "cards"
   | "pricing" | "testimonial" | "login" | "register" | "divider" | "footer"
   | "input" | "flex" | "grid" | "stack" | "absolute" | "section" | "video";
-import studioAsset from "@/assets/studio-product.jpg.asset.json";
-import venueAsset from "@/assets/assembly-venue.jpg.asset.json";
 
 export const CONTAINER_TYPES: BlockType[] = ["flex", "grid", "stack", "absolute", "section"];
 export const isContainer = (t: BlockType) => CONTAINER_TYPES.includes(t);
 /** Containers whose children flow with real flex/grid layout (not free positioning). */
-export const FLOW_TYPES: BlockType[] = ["flex", "grid", "stack"];
+export const FLOW_TYPES: BlockType[] = ["flex", "grid", "stack", "section"];
 export const isFlow = (t: BlockType) => FLOW_TYPES.includes(t);
 /** Layout panels that render no content of their own — only their children. */
 export const isPanel = (t: BlockType) => FLOW_TYPES.includes(t) || t === "absolute";
 
-export const STUDIO_IMAGE = studioAsset.url;
-export const VENUE_IMAGE = venueAsset.url;
-/** Map legacy bundled-asset paths (which break after a rebuild) to stable CDN URLs. */
+/** Template photos ship as static files, so they load in the editor, previews, published sites and exports. */
+export const STUDIO_IMAGE = "/images/studio-product.jpg";
+export const VENUE_IMAGE = "/images/assembly-venue.jpg";
+/** Map legacy bundled-asset paths (which break after a rebuild or project move) to the static template photos. */
 export function mediaUrl(raw?: string): string {
   const v = (raw ?? "").trim();
   if (!v) return "";
-  if (/studio-product[^/]*\.jpg/.test(v) && !v.includes("/__l5e/")) return STUDIO_IMAGE;
-  if (/assembly-venue[^/]*\.jpg/.test(v) && !v.includes("/__l5e/")) return VENUE_IMAGE;
+  if (/studio-product[^/]*\.jpg/.test(v)) return STUDIO_IMAGE;
+  if (/assembly-venue[^/]*\.jpg/.test(v)) return VENUE_IMAGE;
   if (/^(https?:\/\/|\/(?!\/)|data:image\/)/i.test(v) && !/["'<>\s]/.test(v)) return v;
   return "";
 }
 /** Make root-relative media URLs absolute (needed when HTML leaves this origin). */
-export const absolutizeMedia = (html: string, origin: string) => html.replace(/\b(src|poster)="\/(?!\/)/g, `$1="${origin}/`);
+export const absolutizeMedia = (html: string, origin: string) => html.replace(/\b(src|poster|data-src)="\/(?!\/)/g, `$1="${origin}/`).replace(/url\((["']?)\/(?!\/)/g, `url($1${origin}/`);
 
 /** YouTube / Vimeo link → embeddable player URL. */
 export function embedUrl(u: string): string | null {
@@ -94,7 +93,7 @@ export const BLOCKS: Record<BlockType, BlockDef> = {
   stack: { name: "Stack", w: 420, h: 320, text: "", sub: "", label: "" },
   absolute: { name: "Absolute box", w: 520, h: 300, text: "", sub: "", label: "" },
   video: { name: "Video", w: 720, h: 420, text: "Product walkthrough", sub: "", label: "" },
-  section: { name: "Section", w: 1200, h: 320, text: "Section title", sub: "Use sections to group content with comfortable spacing.", label: "" },
+  section: { name: "Section", w: 1200, h: 320, text: "", sub: "", label: "" },
 };
 
 export type Theme = { primary: string; accent: string; surface: string; ink: string };
@@ -109,6 +108,7 @@ export type BlockContent = { text: string; sub: string; label: string; href?: st
 
 /** Inline layout CSS for a layout panel's own element (flex/grid/stack enforce real layout). */
 export function panelCss(type: BlockType, b: BoxOpts = {}): string {
+  if (type === "section") return boxStyle(type, b);
   if (isFlow(type)) return boxStyle(type, b) + "padding:16px;";
   if (type === "absolute") return "position:absolute;";
   return "";
@@ -118,6 +118,7 @@ const JUST = { start: "flex-start", center: "center", end: "flex-end", between: 
 const ALIGN = { start: "flex-start", center: "center", end: "flex-end", stretch: "stretch" } as const;
 function boxStyle(type: BlockType, b: BoxOpts = {}): string {
   const gap = `gap:${b.gap ?? 16}px;`;
+  if (type === "section") return `display:flex;flex-direction:column;${gap}justify-content:${JUST[b.justify ?? "center"]};align-items:${ALIGN[b.align ?? "stretch"]};padding:48px 80px;`;
   if (type === "grid") return `display:grid;grid-template-columns:repeat(${Math.max(1, Math.min(12, b.cols ?? 3))},minmax(0,1fr));${gap}align-items:${ALIGN[b.align ?? "stretch"]};`;
   if (type === "absolute") return "position:relative;";
   const dir = type === "stack" ? "column" : b.dir ?? "row";
@@ -138,7 +139,8 @@ export function safeHref(raw?: string): string {
 export function blockHtml(type: BlockType, c: BlockContent, id: string): string {
   const t = esc(c.text), s = esc(c.sub), l = esc(c.label);
   const href = esc(safeHref(c.href));
-  const action = (label: string) => href ? `<a class="wc-btn" href="${href}">${label}</a>` : `<span class="wc-btn wc-btn-unset" title="Set a destination in WebCraft">${label}</span>`;
+  const nt = c.attrs?.["data-new-tab"] === "true" && /^https?:/i.test(href) ? ` target="_blank" rel="noopener"` : "";
+  const action = (label: string) => href ? `<a class="wc-btn" href="${href}"${nt}>${label}</a>` : `<span class="wc-btn wc-btn-unset" title="Set a destination in WebCraft">${label}</span>`;
   switch (type) {
     case "navbar":
       return `<nav class="wc-nav" aria-label="Main"><strong class="wc-brand">${t}</strong><ul>${split(c.sub).map((x) => `<li><span>${esc(x)}</span></li>`).join("")}</ul>${action(l)}</nav>`;
@@ -194,7 +196,6 @@ export function blockHtml(type: BlockType, c: BlockContent, id: string): string 
       return `<label class="wc-field"><span>${t}</span><input placeholder="${s}"${attrString(a)}><small class="wc-field-msg" aria-live="polite"></small></label>`;
     }
     case "section":
-      return `<section class="wc-section"><h2>${t}</h2><p>${s}</p></section>`;
     case "flex": case "grid": case "stack": case "absolute":
       return ""; // layout panels render only their children
   }
@@ -262,7 +263,13 @@ export const BLOCK_CSS = `
 .wc-editor .wc-box{outline:1px dashed color-mix(in srgb,var(--wc-ink) 28%,transparent);outline-offset:-1px;}
 .wc-flow{position:relative!important;left:auto!important;top:auto!important;flex:0 0 auto;max-width:100%;}
 .wc-box-grid>.wc-flow{width:auto!important;min-width:0;}
-.wc-box-stack>.wc-flow{max-width:100%;}
+.wc-box-stack>.wc-flow,.wc-box-section>.wc-flow{max-width:100%;}
+.wc-box-stack[style*="align-items: stretch"]>.wc-flow,.wc-box-stack[style*="align-items:stretch"]>.wc-flow,.wc-box-section[style*="align-items: stretch"]>.wc-flow,.wc-box-section[style*="align-items:stretch"]>.wc-flow{width:auto!important;align-self:stretch;}
+.wc-box-absolute{position:absolute;}
+.wc-box-absolute>.wc-el{position:absolute;}
+.wc-box-section{background:color-mix(in srgb,var(--wc-accent) 7%,var(--wc-surface));}
+@media (max-width:640px){[data-hide-mobile="true"]{display:none!important}}
+@media (min-width:1025px){[data-hide-desktop="true"]{display:none!important}}
 .wc-video{margin:0;height:100%;display:flex;flex-direction:column;gap:8px;}
 .wc-video-frame{flex:1;width:100%;min-height:0;border:0;border-radius:14px;background:#000;object-fit:cover;display:block;}
 .wc-video-empty{flex:1;display:grid;place-items:center;border-radius:14px;background:linear-gradient(135deg,var(--wc-ink),color-mix(in srgb,var(--wc-primary) 60%,var(--wc-ink)));color:var(--wc-surface);font-size:42px;}

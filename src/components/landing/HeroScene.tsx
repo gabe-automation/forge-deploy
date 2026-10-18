@@ -23,7 +23,7 @@ function Website({ reduced }: { reduced: boolean }) {
     ctx.font = "22px sans-serif"; ctx.fillText("Thoughtful objects for everyday living.", 900, 215);
     ctx.fillStyle = color("--showcase-accent"); ctx.fillRect(900, 248, 235, 58);
     ctx.fillStyle = color("--showcase-paper"); ctx.font = "20px sans-serif"; ctx.fillText("Explore collection  ↗", 922, 284);
-    ctx.drawImage(image.image, 65, 350, 1470, 570);
+    ctx.drawImage(image.image as CanvasImageSource, 65, 350, 1470, 570);
     const result = new THREE.CanvasTexture(canvas); result.colorSpace = THREE.SRGBColorSpace;
     return result;
   }, [image]);
