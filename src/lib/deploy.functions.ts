@@ -12,8 +12,10 @@ const input = z.object({
   binary: z.record(z.string().regex(/^[\w./-]{1,120}$/), z.string().max(40_000_000)).default({}),
 });
 
-async function sha1(s: string) {
-  const buf = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(s));
+const b64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+async function sha1(s: string | Uint8Array) {
+  const bytes = typeof s === "string" ? new TextEncoder().encode(s) : s;
+  const buf = await crypto.subtle.digest("SHA-1", bytes as BufferSource);
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
@@ -39,7 +41,9 @@ export const deploySite = createServerFn({ method: "POST" })
       }
       const digests: Record<string, string> = {};
       const bySha: Record<string, string> = {};
-      for (const [path, content] of Object.entries(data.files)) {
+      const all: Record<string, string | Uint8Array> = { ...data.files };
+      for (const [path, content] of Object.entries(data.binary)) all[path] = b64(content);
+      for (const [path, content] of Object.entries(all)) {
         const h = await sha1(content);
         digests[`/${path}`] = h;
         bySha[h] = path;
@@ -50,7 +54,7 @@ export const deploySite = createServerFn({ method: "POST" })
       for (const h of deploy.required ?? []) {
         const path = bySha[h];
         if (!path) continue;
-        const up = await fetch(`https://api.netlify.com/api/v1/deploys/${deploy.id}/files/${path}`, { method: "PUT", headers: { ...auth, "content-type": "application/octet-stream" }, body: data.files[path] });
+        const up = await fetch(`https://api.netlify.com/api/v1/deploys/${deploy.id}/files/${path}`, { method: "PUT", headers: { ...auth, "content-type": "application/octet-stream" }, body: all[path] as BodyInit });
         if (!up.ok) return { ok: false as const, error: `Netlify upload failed for ${path}.` };
       }
       const sr = await fetch(`https://api.netlify.com/api/v1/sites/${siteId}`, { headers: auth });
@@ -63,7 +67,7 @@ export const deploySite = createServerFn({ method: "POST" })
       headers: { ...auth, "content-type": "application/json" },
       body: JSON.stringify({
         name, target: "production",
-        files: Object.entries(data.files).map(([file, content]) => ({ file, data: content })),
+        files: [...Object.entries(data.files).map(([file, content]) => ({ file, data: content })), ...Object.entries(data.binary).map(([file, content]) => ({ file, data: content, encoding: "base64" }))],
         projectSettings: { framework: null, buildCommand: null, outputDirectory: null, installCommand: null },
       }),
     });
