@@ -34,7 +34,8 @@ import { SitePreview } from "@/components/SitePreview";
 import { openSandboxed, downloadSiteZip } from "@/lib/sandbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { isContainer, isFlow, absolutizeMedia, type BoxOpts } from "@/lib/blocks";
-import { snippetsFor, type SnippetKind } from "@/lib/snippets";
+import { presetFor } from "@/lib/snippets";
+import { MediaPanel, AttrsPanel, SnippetsPanel } from "@/components/editor/BlockPanels";
 import { DeployDialog } from "@/components/editor/DeployDialog";
 import { Rocket, Upload } from "lucide-react";
 
@@ -246,6 +247,11 @@ function EditorPage() {
       extra["attrs"] = copy.attrs; extra["script"] = copy.script; extra["html"] = copy.html; extra["css"] = copy.css;
       for (const [k, v] of Object.entries(copy.box)) extra[`c.${k}`] = v;
       for (const [k, v] of Object.entries(copy.style)) extra[`s.${k}`] = v;
+    } else {
+      const pre = presetFor(type);
+      if (pre.css) extra["css"] = pre.css;
+      if (pre.script) extra["script"] = pre.script;
+      if (pre.html) extra["html"] = pre.html;
     }
     const gx = Math.max(0, Math.min(boundW - w, x));
     const gy = Math.max(0, Math.min(Math.max(0, boundH - h), y));
@@ -1034,7 +1040,7 @@ function Inspector(props: {
           <p className="text-xs text-muted-foreground">Paste your payment provider's checkout link, or select a project page. Sign-in and sign-up blocks also need a destination; they do not create user accounts.</p>
         </div>
       )}
-      {isContainer(node.type) && node.type !== "section" && (
+      {isContainer(node.type) && (
         <BoxPanel type={node.type} box={node.box} disabled={disabled} onBox={props.onBox} />
       )}
       {["image", "hero", "video"].includes(node.type) && (
@@ -1259,7 +1265,6 @@ function TeamPanel(props: {
   );
 }
 
-__NEWPANELS__
 
 function BoxPanel({ type, box, disabled, onBox }: { type: BlockType; box: BoxOpts; disabled: boolean; onBox: (k: keyof BoxOpts, v: unknown) => void }) {
   const seg = <K extends keyof BoxOpts>(k: K, label: string, opts: readonly string[], dflt: string) => (
