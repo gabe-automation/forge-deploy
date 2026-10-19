@@ -8,6 +8,8 @@ const input = z.object({
   siteName: z.string().max(60),
   siteId: z.string().max(120).optional(),
   files: z.record(z.string().regex(/^[\w./-]{1,120}$/), z.string().max(5_000_000)),
+  /** Binary files (images, videos) as base64. */
+  binary: z.record(z.string().regex(/^[\w./-]{1,120}$/), z.string().max(40_000_000)).default({}),
 });
 
 async function sha1(s: string) {
