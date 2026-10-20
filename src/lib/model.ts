@@ -117,7 +117,7 @@ export function generateExport(nodes: NodeView[], theme: Theme, title: string) {
     const inner = blockHtml(n.type, n, shortId(n.id)) + (n.html.trim() ? `\n${indent}  ${n.html.trim()}` : "");
     const par = n.parent ? byId.get(n.parent) : undefined;
     const cls = ["wc-el", isPanel(n.type) ? `wc-box wc-box-${n.type}${panelClass(n.type, n.box)}` : "", par && isFlow(par.type) ? "wc-flow" : ""].filter(Boolean).join(" ");
-    return `${indent}<div class="${cls}" id="${shortId(n.id)}"${n.type === "input" ? "" : attrString(n.attrs)}>${inner ? `\n${indent}  ${inner}` : ""}${kids ? `\n${kids}` : ""}\n${indent}</div>`;
+    return `${indent}<div class="${cls}" id="${shortId(n.id)}"${n.type === "input" ? attrString(Object.fromEntries(Object.entries(n.attrs).filter(([k]) => k.startsWith("data-hide-")))) : attrString(n.attrs)}>${inner ? `\n${indent}  ${inner}` : ""}${kids ? `\n${kids}` : ""}\n${indent}</div>`;
   };
   const body = topLevel.map((n) => renderEl(n, "    ")).join("\n");
   const html = `<!doctype html>
