@@ -21,6 +21,9 @@
 - [x] Layout panels (flex, grid, stack, absolute, section) enforce real layout; section is a pure panel with a hint
 - [x] HTML / CSS / Script snippets for every block type; new blocks arrive pre-styled like template blocks
 
+## Device support
+- [ ] Adapt workspace and editor for phones and tablets; enforce phone viewing-only access and verify.
+
 ## Backlog (deferred)
 
 - [ ] Revision history + rollback UI (activity table already stores before/after)
