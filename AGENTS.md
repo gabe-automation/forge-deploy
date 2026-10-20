@@ -10,3 +10,6 @@
 <!-- LOVABLE:END -->
 
 - Keep public landing-page styling scoped to its wrapper so redesigns do not change the editor or authentication screens.
+- Site media lives in the private `site-media` bucket and is referenced as `/media/<projectId>/<file>` (served by a signed-URL redirect route); template photos are static files in `public/images/` so they work on every origin.
+- Exports and external deploys go through `packageSite` in `src/lib/sandbox.ts`, which bundles all media into `assets/` so sites never depend on the editor's origin.
+- Database migrations live in `drizzle/migrations/` (the migration tool replays that journal).
