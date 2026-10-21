@@ -1,6 +1,6 @@
 // Google-Docs-style text co-editing: every text field is a Yjs Y.Text (sequence CRDT).
 // Updates are persisted as rows in text_updates and fanned out through realtime.
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Y from "yjs";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -12,6 +12,8 @@ const toB64 = (u: Uint8Array) => {
 const fromB64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 
 export function useSharedText(projectId: string, canEdit: boolean) {
+  const canEditRef = useRef(canEdit);
+  canEditRef.current = canEdit;
   const doc = useMemo(() => new Y.Doc(), [projectId]);
   const [ver, setVer] = useState(0);
 
@@ -20,7 +22,7 @@ export function useSharedText(projectId: string, canEdit: boolean) {
     const bump = () => setVer((v) => v + 1);
     const onUpdate = (u: Uint8Array, origin: unknown) => {
       bump();
-      if (origin === "local") {
+      if (origin === "local" && canEditRef.current) {
         supabase.from("text_updates").insert({ project_id: projectId, node_id: projectId, update: toB64(u) }).then(({ error }) => {
           if (error) console.error("text sync failed", error.message);
         });
@@ -59,6 +61,7 @@ export function useSharedText(projectId: string, canEdit: boolean) {
   /** Apply a textarea edit as a minimal insert/delete so concurrent typing merges. */
   const set = useCallback(
     (key: string, next: string, seed: string) => {
+      if (!canEditRef.current) return;
       const t = doc.getText(key);
       const meta = doc.getMap("meta");
       doc.transact(() => {
