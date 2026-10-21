@@ -11,6 +11,7 @@ import { ActivityPreview } from "./ActivityPreview";
 type Member = { id: string; name: string; color: string };
 
 export function ChatPage(p: {
+  readOnly?: boolean;
   myId: string;
   members: Member[];
   messages: Message[];
@@ -70,6 +71,7 @@ export function ChatPage(p: {
     requestAnimationFrame(() => { el.focus(); el.setSelectionRange(before.length, before.length); });
   }
   async function submit() {
+    if (p.readOnly) return;
     const body = text.trim();
     if (!body && !p.attach) return;
     const mentions = p.members.filter((m) => body.includes(`@${m.name.replace(/\s+/g, "_")}`)).map((m) => m.id);
@@ -80,20 +82,20 @@ export function ChatPage(p: {
 
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col">
-      <div className="flex items-center gap-3 border-b px-6 py-4">
+      <div className="grid min-w-0 gap-3 border-b px-3 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-6">
         <div>
           <h1 className="text-2xl">Team chat</h1>
-          <p className="text-sm text-muted-foreground">Everyone on this project. Type @ to mention someone, or attach a change to explain it.</p>
+          <p className="text-sm text-muted-foreground">Everyone on this project.</p>
         </div>
-        <div className="ml-auto flex rounded-lg border p-0.5 text-xs">
+        <div className="flex w-fit rounded-lg border p-0.5 text-xs">
           {(["all", "mentions", "changes"] as const).map((f) => (
-            <button key={f} onClick={() => setFilter(f)} className={`rounded-md px-2.5 py-1 capitalize ${filter === f ? "bg-secondary font-medium" : "text-muted-foreground"}`}>{f}</button>
+            <Button key={f} size="sm" variant={filter === f ? "secondary" : "ghost"} onClick={() => setFilter(f)} className="capitalize" aria-pressed={filter === f}>{f}</Button>
           ))}
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4">
-        {shown.length === 0 && <p className="py-16 text-center text-muted-foreground">No messages yet. Say hello to the team.</p>}
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-4 sm:px-6">
+        {shown.length === 0 && <p className="py-16 text-center text-muted-foreground">No messages yet.</p>}
         {shown.map((m) => {
           const u = byId[m.user_id];
           const mine = m.user_id === p.myId;
@@ -105,10 +107,10 @@ export function ChatPage(p: {
                 {(u?.name ?? "?").slice(0, 2).toUpperCase()}
               </span>
               <div className="min-w-0 flex-1">
-                <div className="flex items-baseline gap-2">
-                  <strong className="text-sm font-semibold">{u?.name ?? "Former member"}</strong>
+                <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2 sm:flex">
+                  <strong className="min-w-0 truncate text-sm font-semibold">{u?.name ?? "Former member"}</strong>
                   <time className="text-[11px] text-muted-foreground">{new Date(m.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</time>
-                  {mine && (
+                  {mine && !p.readOnly && (
                     <button onClick={() => p.remove(m.id)} className="ml-auto opacity-0 group-hover:opacity-100" aria-label="Delete message"><Trash2 className="size-3.5 text-muted-foreground" /></button>
                   )}
                 </div>
@@ -133,7 +135,7 @@ export function ChatPage(p: {
         <div ref={endRef} />
       </div>
 
-      <div className="border-t px-6 py-4">
+      {!p.readOnly && <div className="border-t px-3 py-4 sm:px-6">
         {p.attach && (
           <div className="mb-2 flex items-center gap-2 rounded-md border-l-4 border-primary bg-primary/5 px-3 py-2 text-sm">
             <GitCommitHorizontal className="size-4 text-primary" />
@@ -170,7 +172,7 @@ export function ChatPage(p: {
             }}
             className="block w-full resize-none bg-transparent px-4 pt-3 text-sm outline-none"
           />
-          <div className="flex items-center gap-1 px-2 pb-2">
+          <div className="flex flex-wrap items-center gap-1 px-2 pb-2">
             <Button size="sm" variant="ghost" onClick={() => { onChange(text + (text.endsWith(" ") || !text ? "@" : " @")); taRef.current?.focus(); }}><AtSign className="size-4" /> Mention</Button>
             <Popover>
               <PopoverTrigger asChild><Button size="sm" variant="ghost"><GitCommitHorizontal className="size-4" /> Attach change</Button></PopoverTrigger>
@@ -197,7 +199,7 @@ export function ChatPage(p: {
             <Button size="sm" className="ml-auto" onClick={submit} disabled={!text.trim() && !p.attach}><Send className="size-4" /> Send</Button>
           </div>
         </div>
-      </div>
+      </div>}
     </div>
   );
 }
