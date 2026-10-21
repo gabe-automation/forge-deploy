@@ -41,6 +41,8 @@ export function cssObj(css: string): React.CSSProperties {
 const SNAP = 6;
 
 export function Canvas(p: Props) {
+  const readOnlyRef = useRef(p.readOnly);
+  readOnlyRef.current = p.readOnly;
   const pageW = BREAKPOINTS[p.bp].width;
   const pageH = pageHeight(p.nodes, p.bp);
   const pageRef = useRef<HTMLDivElement>(null);
@@ -49,7 +51,8 @@ export function Canvas(p: Props) {
   const [dropTarget, setDropTarget] = useState<string | null>(null);
 
   const toPage = (e: { clientX: number; clientY: number }) => {
-    const r = pageRef.current!.getBoundingClientRect();
+    const r = pageRef.current?.getBoundingClientRect();
+    if (!r) return { x: 0, y: 0 };
     return { x: (e.clientX - r.left) / p.scale, y: (e.clientY - r.top) / p.scale };
   };
 
@@ -84,7 +87,8 @@ export function Canvas(p: Props) {
     const seen = new Set<string>();
     while (cur.parent && ids.has(cur.parent) && !seen.has(cur.parent)) {
       seen.add(cur.parent);
-      const par = p.nodes.find((m) => m.id === cur.parent)!;
+      const par = p.nodes.find((m) => m.id === cur.parent);
+      if (!par) break;
       const pg = geoOf(par);
       x += pg.x; y += pg.y;
       cur = par;
@@ -166,8 +170,9 @@ export function Canvas(p: Props) {
     const orig = n.geo[p.bp];
     const flowParent = n.parent && ids.has(n.parent) ? p.nodes.find((m) => m.id === n.parent) : undefined;
     if (!resizing && flowParent && isFlow(flowParent.type)) {
-      const el = (e.currentTarget as HTMLElement).closest<HTMLElement>("[data-node]")!;
-      const box = el.parentElement!;
+       const el = (e.currentTarget as HTMLElement).closest<HTMLElement>("[data-node]");
+       const box = el?.parentElement;
+       if (!el || !box) return;
       let dragged = false;
       const mv = (ev: PointerEvent) => {
         if (Math.abs(ev.clientX - e.clientX) + Math.abs(ev.clientY - e.clientY) > 4) { dragged = true; el.style.opacity = "0.5"; setDropTarget(flowParent.id); }
@@ -177,7 +182,7 @@ export function Canvas(p: Props) {
         window.removeEventListener("pointerup", done);
         el.style.opacity = "";
         setDropTarget(null);
-        if (!dragged) return;
+         if (!dragged || readOnlyRef.current) return;
         const row = getComputedStyle(box).flexDirection === "row" && getComputedStyle(box).display === "flex";
         const grid = getComputedStyle(box).display === "grid";
         const sibs = [...box.querySelectorAll<HTMLElement>(":scope > [data-node]")].filter((x) => x !== el);
@@ -197,6 +202,7 @@ export function Canvas(p: Props) {
     let last = orig;
     let moved = false;
     const move = (ev: PointerEvent) => {
+      if (readOnlyRef.current) return;
       const cur = toPage(ev);
       let dx = cur.x - start.x, dy = cur.y - start.y;
       if (!resizing && p.prefs.axis === "x") dy = 0;
@@ -214,7 +220,7 @@ export function Canvas(p: Props) {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       setGuides({ x: [], y: [] });
-      if (moved) {
+      if (moved && !readOnlyRef.current) {
         p.onLiveDrag(n.id, last, true);
         p.onCommit(n.id, last, resizing ? "resized" : "moved");
       }
@@ -315,6 +321,7 @@ export function Canvas(p: Props) {
         }}
         onDragLeave={() => setDropTarget(null)}
         onDrop={(e) => {
+          if (p.readOnly) return;
           setDropTarget(null);
           const t = e.dataTransfer.getData("application/x-webcraft-block") as BlockType;
           if (!t) return;

@@ -13,3 +13,5 @@
 - Site media lives in the private `site-media` bucket and is referenced as `/media/<projectId>/<file>` (served by a signed-URL redirect route); template photos are static files in `public/images/` so they work on every origin.
 - Exports and external deploys go through `packageSite` in `src/lib/sandbox.ts`, which bundles all media into `assets/` so sites never depend on the editor's origin.
 - Database migrations live in `drizzle/migrations/` (the migration tool replays that journal).
+- Device access is centralized in `useDeviceAccess`; unknown devices start view-only, and editor mutation callbacks plus room operations enforce device restrictions without changing membership roles.
+- The editor uses a two-row header and overlay inspector below desktop widths to preserve canvas space on tablets.
