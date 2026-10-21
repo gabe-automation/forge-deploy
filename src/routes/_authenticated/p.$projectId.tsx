@@ -38,6 +38,7 @@ import { presetFor } from "@/lib/snippets";
 import { MediaPanel, AttrsPanel, SnippetsPanel } from "@/components/editor/BlockPanels";
 import { DeployDialog } from "@/components/editor/DeployDialog";
 import { Rocket, Upload } from "lucide-react";
+import { useDeviceAccess } from "@/hooks/use-device-access";
 
 export const Route = createFileRoute("/_authenticated/p/$projectId")({
   head: () => ({
@@ -55,18 +56,6 @@ export const Route = createFileRoute("/_authenticated/p/$projectId")({
 
 type Page = { id: string; kind: string; title: string; sort: string };
 const PAGE_ICON = { canvas: FileText, whiteboard: PenTool, chat: MessagesSquare } as Record<string, typeof FileText>;
-
-function useMediaQuery(query: string) {
-  const [matches, setMatches] = useState(() => typeof window !== "undefined" && window.matchMedia(query).matches);
-  useEffect(() => {
-    const mq = window.matchMedia(query);
-    const onChange = () => setMatches(mq.matches);
-    onChange();
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
-  }, [query]);
-  return matches;
-}
 
 function EditorPage() {
   const { projectId } = Route.useParams();
@@ -91,9 +80,8 @@ function EditorPage() {
     [user.id, myProfile],
   );
   const myRole = info?.members.find((m) => m.user_id === user.id)?.role;
-  const isMobile = useMediaQuery("(max-width: 767px)");
-  const readOnly = myRole === "viewer" || isMobile;
-  const room = useRoom(projectId, me);
+  const { isMobile, readOnly } = useDeviceAccess(myRole ?? "unknown");
+  const room = useRoom(projectId, me, readOnly);
   const shared = useSharedText(projectId, !!myRole && !readOnly);
   const members = useMemo(
     () => (info?.members ?? []).map((m) => {
@@ -133,6 +121,7 @@ function EditorPage() {
   const firstCanvas = pages.find((x) => x.kind === "canvas")?.id ?? null;
 
   async function addPage(kind: "canvas" | "whiteboard" | "chat") {
+    if (readOnly) return;
     if (kind === "chat") { setChatOpen(true); return; }
     const last = pages[pages.length - 1]?.sort ?? null;
     const title = kind === "canvas" ? `Page ${pages.filter((x) => x.kind === "canvas").length + 1}` : kind === "whiteboard" ? "Whiteboard" : "Team chat";
@@ -143,12 +132,14 @@ function EditorPage() {
     setChatOpen(false);
   }
   async function renamePage(pg: Page) {
+    if (readOnly) return;
     const t = window.prompt("Page name", pg.title)?.trim();
     if (!t || t === pg.title) return;
     await supabase.from("pages").update({ title: t }).eq("id", pg.id);
     qc.invalidateQueries({ queryKey: ["pages", projectId] });
   }
   async function deletePage(pg: Page) {
+    if (readOnly) return;
     if (pages.length <= 1 || !window.confirm(`Delete “${pg.title}”?`)) return;
     await supabase.from("pages").delete().eq("id", pg.id);
     if (page?.id === pg.id) setPageId(null);
@@ -167,6 +158,18 @@ function EditorPage() {
   const [hostOpen, setHostOpen] = useState(false);
   const [deployOpen, setDeployOpen] = useState(false);
   const heldRef = useRef<{ id: string; label: string } | null>(null);
+  useEffect(() => {
+    if (!readOnly) return;
+    setPanelOpen(false);
+    setTplOpen(false);
+    setDeployOpen(false);
+    setHostOpen(false);
+    const held = heldRef.current;
+    heldRef.current = null;
+    if (held) void room.release(held.id, held.label);
+    room.setStatus("watching");
+  }, [readOnly]);
+  useEffect(() => { if (isMobile) setBp("mobile"); }, [isMobile]);
   const [theme, setTheme] = useState<Theme>(DEFAULT_THEME);
   useEffect(() => {
     if (info?.project?.theme) setTheme({ ...DEFAULT_THEME, ...(info.project.theme as Partial<Theme>) });
@@ -210,8 +213,8 @@ function EditorPage() {
     heldRef.current = null;
     if (prev) room.release(prev.id, prev.label);
     setSelected(id);
-    if (id && typeof window !== "undefined" && window.innerWidth < 1024) setPanelOpen(true);
-    room.setStatus(id ? "editing" : "watching");
+    if (id && !readOnly && window.innerWidth < 1280) setPanelOpen(true);
+    room.setStatus(id && !readOnly ? "editing" : "watching");
     if (!id || readOnly || !prefs.lockOnSelect) return;
     const v = views.find((x) => x.id === id);
     if (!v) return;
@@ -223,7 +226,7 @@ function EditorPage() {
   useEffect(() => { select(null); }, [page?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function addBlock(type: BlockType, at?: { x: number; y: number }, copy?: NodeView, parentId?: string) {
-    if (!page) return;
+    if (!page || readOnly) return;
     const def = BLOCKS[type];
     const id = crypto.randomUUID();
     const parent = parentId ? views.find((v) => v.id === parentId) : undefined;
@@ -276,6 +279,7 @@ function EditorPage() {
 
   /** Delete a block and everything nested inside it. */
   async function removeNode(id: string) {
+    if (readOnly) return;
     const byParent = new Map<string | null, string[]>();
     for (const v of views) {
       const arr = byParent.get(v.parent) ?? [];
@@ -294,6 +298,7 @@ function EditorPage() {
   }
 
   function commitGeo(id: string, g: Geo, kind: "moved" | "resized") {
+    if (readOnly) return;
     const v = views.find((x) => x.id === id);
     if (!v) return;
     room.op(id, { [`x@${bp}`]: g.x, [`y@${bp}`]: g.y, [`w@${bp}`]: g.w, [`h@${bp}`]: g.h }, kind, labelOf(v));
@@ -321,6 +326,7 @@ function EditorPage() {
   });
 
   async function saveTheme(t: Theme) {
+    if (readOnly) return;
     setTheme(t);
     const { error } = await supabase.from("projects").update({ theme: t }).eq("id", projectId);
     if (error) toast.error("Couldn't save theme");
@@ -353,6 +359,7 @@ function EditorPage() {
     if (!openSandboxed(html, info?.project?.name ?? "Preview")) toast.error("Allow pop-ups to preview");
   }
   async function publishSite() {
+    if (readOnly) return;
     if (page?.kind !== "canvas") { toast.info("Open the design page you want to publish."); return; }
     if (!views.length) { toast.info("This page is empty — add some blocks first."); return; }
     const { error } = await supabase.from("published_sites").upsert({ project_id: projectId, title: info?.project?.name ?? "", html: singleHtml(), pages_html: sitePages as never, published_by: user.id, updated_at: new Date().toISOString() });
@@ -361,12 +368,13 @@ function EditorPage() {
     toast.success("Site published", { action: { label: "Open", onClick: () => window.open(siteUrl, "_blank") } });
   }
   async function unpublish() {
+    if (readOnly) return;
     await supabase.from("published_sites").delete().eq("project_id", projectId);
     qc.invalidateQueries({ queryKey: ["published", projectId] });
     toast.success("Site unpublished");
   }
   async function applyTemplate(t: SiteTemplate) {
-    if (!page || page.kind !== "canvas") return;
+    if (!page || page.kind !== "canvas" || readOnly) return;
     if (views.length && !window.confirm(`Add the “${t.name}” blocks below what's already on this page?`)) return;
     const base = views.reduce((m, v) => Math.max(m, v.geo.desktop.y + v.geo.desktop.h), 0) + (views.length ? 48 : 0);
     let order: string | null = views.reduce<string | null>((m, v) => (!m || v.order > m ? v.order : m), null);
@@ -462,15 +470,15 @@ function EditorPage() {
   const onPage = (s: string) => room.peers.filter((p) => p.session !== room.session && (room.cursors[p.session]?.page ?? null) === s);
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-background">
-      <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-card px-3 overflow-x-auto [&>*]:shrink-0">
+    <div className="editor-workspace flex h-dvh flex-col overflow-hidden bg-background">
+      <header className="editor-header grid shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b bg-card px-3 py-2 xl:flex xl:h-14 xl:py-0">
         <Button variant="ghost" size="icon" asChild><Link to="/projects" aria-label="Back to projects"><ArrowLeft /></Link></Button>
-        <span className="max-w-40 truncate font-display text-sm font-semibold">{info?.project?.name ?? "…"}</span>
+        <span className="min-w-0 truncate font-display text-sm font-semibold xl:max-w-40">{info?.project?.name ?? "…"}</span>
         <Button size="sm" variant={chatOpen ? "secondary" : "outline"} onClick={() => openChat()} className="relative ml-auto" aria-label="Open team chat">
           <MessagesSquare className="size-4" /> <span className="hidden sm:inline">Chat</span>
           {chat.unread > 0 && !chatOpen && <span className="rounded-full bg-primary px-1.5 text-[10px] text-primary-foreground">{chat.unread}</span>}
         </Button>
-        <div className="flex min-w-0 items-center gap-2 overflow-x-auto [&>*]:shrink-0">
+        <div className="col-span-3 flex min-w-0 items-center gap-2 overflow-x-auto [&>*]:shrink-0">
         {readOnly && (
           <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground" title={isMobile ? "Editing is only available on a larger screen" : undefined}>
             {isMobile ? "View only on mobile" : "View only"}
@@ -481,27 +489,26 @@ function EditorPage() {
             {(["desktop", "tablet", "mobile"] as Breakpoint[]).map((b) => {
               const Icon = b === "desktop" ? Monitor : b === "tablet" ? Tablet : Smartphone;
               return (
-                <button key={b} onClick={() => setBp(b)}
-                  className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs ${bp === b ? "bg-secondary font-medium" : "text-muted-foreground"}`}>
-                  <Icon className="size-3.5" /> {BREAKPOINTS[b].label}
-                </button>
+                <Button key={b} size="icon" variant={bp === b ? "secondary" : "ghost"} onClick={() => setBp(b)} aria-label={`${BREAKPOINTS[b].label} page view`} aria-pressed={bp === b} title={`${BREAKPOINTS[b].label} page view`} className="size-8">
+                  <Icon className="size-4" />
+                </Button>
               );
             })}
           </div>
         ) : <span className="mx-auto text-sm text-muted-foreground">{page?.title}</span>}
         <div className="flex items-center gap-1">
-          <Button size="sm" variant={page?.kind === "whiteboard" ? "secondary" : "ghost"} onClick={() => { const w = pages.find((x) => x.kind === "whiteboard"); if (w) { setPageId(w.id); setChatOpen(false); } else addPage("whiteboard"); }}><PenTool className="size-4" /> <span className="hidden xl:inline">Whiteboard</span></Button>
+          <Button size="sm" disabled={readOnly && !pages.some((x) => x.kind === "whiteboard")} variant={page?.kind === "whiteboard" ? "secondary" : "ghost"} onClick={() => { const w = pages.find((x) => x.kind === "whiteboard"); if (w) { setPageId(w.id); setChatOpen(false); } else addPage("whiteboard"); }}><PenTool className="size-4" /> <span className="hidden xl:inline">Whiteboard</span></Button>
         </div>
         {page?.kind === "canvas" && !readOnly && (
           <Button size="sm" variant="outline" onClick={() => setTplOpen(true)}><LayoutTemplate className="size-4" /> <span className="hidden xl:inline">Templates</span></Button>
         )}
-        {page?.kind !== "chat" && (
-          <Button size="sm" variant={panelOpen ? "secondary" : "outline"} className="lg:hidden" onClick={() => setPanelOpen((o) => !o)} aria-label="Toggle settings panel"><PanelLeft className="size-4" /></Button>
+        {page?.kind !== "chat" && !isMobile && (
+          <Button size="sm" variant={panelOpen ? "secondary" : "outline"} className="xl:hidden" onClick={() => setPanelOpen((o) => !o)} aria-label="Toggle settings panel"><PanelLeft className="size-4" /></Button>
         )}
         {page && page.kind !== "chat" && !readOnly && <DragSettings prefs={prefs} onChange={setPrefs} />}
-        <Button size="sm" variant="outline" onClick={previewSite} title="Preview website"><Eye className="size-4" /> <span className="hidden xl:inline">Preview</span></Button>
-        <Popover>
-          <PopoverTrigger asChild><Button size="sm" disabled={readOnly}><Globe className="size-4" /> <span className="hidden xl:inline">Publish</span></Button></PopoverTrigger>
+        <Button size="sm" variant="outline" disabled={page?.kind !== "canvas"} onClick={previewSite} title="Preview website"><Eye className="size-4" /> <span className="hidden xl:inline">Preview</span></Button>
+        {!readOnly && <Popover>
+          <PopoverTrigger asChild><Button size="sm"><Globe className="size-4" /> <span className="hidden xl:inline">Publish</span></Button></PopoverTrigger>
           <PopoverContent align="end" className="w-80 space-y-3 text-sm">
             <p className="font-medium">Publish your website</p>
             {published ? (
@@ -526,8 +533,8 @@ function EditorPage() {
               <Button size="sm" variant="outline" className="w-full" onClick={() => setHostOpen(true)}><Server className="size-4" /> Hostinger, GoDaddy & others (ZIP)</Button>
             </div>
           </PopoverContent>
-        </Popover>
-        <div className="flex -space-x-2">
+        </Popover>}
+        <div className="hidden -space-x-2 sm:flex">
           {room.peers.map((p) => (
             <span key={p.session} title={`${p.name}${p.session === room.session ? " (you)" : ""} · ${p.status}`}
               className="relative grid size-8 place-items-center rounded-full border-2 border-card text-[11px] font-semibold text-primary-foreground"
@@ -543,8 +550,8 @@ function EditorPage() {
       <div className="flex min-h-0 flex-1">
         {/* Settings panel (left) */}
         {page?.kind !== "chat" && (
-        <aside className={`${panelOpen ? "fixed bottom-0 left-0 top-14 z-40 flex shadow-lift" : "hidden"} w-[min(20rem,90vw)] shrink-0 flex-col border-r bg-card lg:static lg:flex lg:w-80 lg:shadow-none ${isMobile ? "!hidden" : ""}`}>
-          <div className="flex items-center justify-end px-2 pt-2 lg:hidden"><Button size="icon" variant="ghost" className="size-7" onClick={() => setPanelOpen(false)} aria-label="Close panel"><X className="size-4" /></Button></div>
+        <aside className={`${panelOpen ? "fixed bottom-0 left-0 top-[6.75rem] z-40 xl:top-14 flex shadow-lift" : "hidden"} w-[min(20rem,90vw)] shrink-0 flex-col border-r bg-card xl:static xl:flex xl:w-80 xl:shadow-none ${isMobile ? "!hidden" : ""}`}>
+          <div className="flex items-center justify-end px-2 pt-2 xl:hidden"><Button size="icon" variant="ghost" className="size-7" onClick={() => setPanelOpen(false)} aria-label="Close panel"><X className="size-4" /></Button></div>
           <Tabs defaultValue="inspect" className="flex min-h-0 flex-1 flex-col">
             <TabsList className="m-2 grid grid-cols-5">
               <TabsTrigger value="inspect">Edit</TabsTrigger>
@@ -579,7 +586,7 @@ function EditorPage() {
                       </p>
                       <div className="mt-1.5 flex gap-1">
                         {pr && <Button size="sm" variant="ghost" className="h-7" onClick={() => jumpTo({ node_id: l.node_id } as Activity)}><Crosshair className="size-3" /> Show</Button>}
-                        {(l.locked_by === user.id || isOwner) && <Button size="sm" variant="ghost" className="h-7" onClick={() => room.setLock(l.node_id, null, [], name)}><Unlock className="size-3" /> Unlock</Button>}
+                        {!readOnly && (l.locked_by === user.id || isOwner) && <Button size="sm" variant="ghost" className="h-7" onClick={() => room.setLock(l.node_id, null, [], name)}><Unlock className="size-3" /> Unlock</Button>}
                         {!mine && <Button size="sm" variant="ghost" className="h-7" onClick={() => openChat(`@${(locker?.name ?? l.locked_by_name).replace(/\s+/g, "_")} could you unlock ${name}${txt ? ` “${txt.slice(0, 22)}”` : ""}? `)}><MessageSquarePlus className="size-3" /> Ask to unlock</Button>}
                       </div>
                     </li>
@@ -699,7 +706,7 @@ function EditorPage() {
             <TabsContent value="team" className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">
               <TeamPanel
                 projectId={projectId}
-                isOwner={myRole === "owner"}
+                isOwner={myRole === "owner" && !readOnly}
                 myId={user.id}
                 members={(info?.members ?? []).map((m) => ({ ...m, profile: info?.profiles.find((p) => p.id === m.user_id) }))}
                 onChanged={() => qc.invalidateQueries({ queryKey: ["project", projectId] })}
@@ -800,16 +807,16 @@ function EditorPage() {
             ops={{ op: room.op, acquire: room.acquire, release: room.release, sendDrag: room.sendDrag, sendCursor: room.sendCursor }} />
         ) : page?.kind === "chat" ? (
           <ChatPage myId={user.id} members={members} messages={chat.messages} activity={room.activity} nodes={room.nodes} theme={theme}
-            attach={attach} setAttach={setAttach} send={chat.send} remove={chat.remove} onJump={jumpTo}
+            readOnly={readOnly} attach={attach} setAttach={setAttach} send={chat.send} remove={chat.remove} onJump={jumpTo}
             draft={chatDraft} clearDraft={() => setChatDraft("")} wbItems={wbItems}
             onOpenWb={() => { const w = pages.find((x) => x.kind === "whiteboard"); if (w) { setPageId(w.id); setChatOpen(false); } }} />
         ) : (
-          <main ref={areaRef} className="editor-gradient min-w-0 flex-1 overflow-auto p-3 sm:p-6 lg:p-8" onMouseLeave={() => room.setStatus(selected ? "editing" : "idle")}>
+          <main ref={areaRef} className="editor-gradient min-w-0 flex-1 overflow-auto p-3 sm:p-6 lg:p-8" onMouseLeave={() => room.setStatus(selected && !readOnly ? "editing" : "watching")}>
             {!room.loaded || !page ? (
               <p className="text-center text-muted-foreground">Loading page…</p>
             ) : (
               <>
-                {views.length === 0 && <p className="mb-4 text-center text-muted-foreground">Blank page — add a Navbar and a Hero from the blocks panel on the right.</p>}
+                {views.length === 0 && <p className="mb-4 text-center text-muted-foreground">{readOnly ? "Empty page" : "Blank page — add a Navbar and a Hero from the blocks panel on the right."}</p>}
                 <Canvas nodes={views} bp={bp} theme={theme} scale={scale} selected={selected} mySession={room.session} leases={room.leases}
                   cursors={room.cursors} pageId={page.id} drags={room.drags} readOnly={readOnly} prefs={prefs} locks={room.locks} canOverride={canOverride} onSelect={select} onCommit={commitGeo}
                   onLiveDrag={(id, g, done) => room.sendDrag({ id, bp, ...g, done })}
