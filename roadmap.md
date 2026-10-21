@@ -22,6 +22,7 @@
 - [x] HTML / CSS / Script snippets for every block type; new blocks arrive pre-styled like template blocks
 
 ## Device support
+- [ ] Make generated website previews and published layouts fit phone and tablet widths, and verify images load in both.
 - [x] Adapt workspace and editor for phones and tablets; phone viewing-only guards cover project creation, page edits, whiteboards, chat, publishing, and shared text. Device tests passed; public pages checked at phone/tablet/desktop widths.
 - [ ] Verify signed-in phone viewing and tablet editing end to end — blocked until the user signs in to the preview (no matching account for managed test sign-in).
 
