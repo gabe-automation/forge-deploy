@@ -31,7 +31,9 @@ export type Me = { id: string; name: string; color: string };
 
 const LEASE_TTL = 15;
 
-export function useRoom(projectId: string, me: Me | null) {
+export function useRoom(projectId: string, me: Me | null, readOnly = false) {
+  const readOnlyRef = useRef(readOnly);
+  readOnlyRef.current = readOnly;
   const [session, setSession] = useState("");
   const [nodes, setNodes] = useState<Record<string, Props>>({});
   const [leases, setLeases] = useState<Record<string, Lease>>({});
@@ -171,6 +173,7 @@ export function useRoom(projectId: string, me: Me | null) {
 
   const lastDrag = useRef(0);
   const sendDrag = useCallback((d: { id: string; bp: string; x: number; y: number; w: number; h: number; done?: boolean | undefined }) => {
+    if (readOnlyRef.current) return;
     const t = Date.now();
     if (!d.done && t - lastDrag.current < 40) return;
     lastDrag.current = t;
@@ -189,6 +192,7 @@ export function useRoom(projectId: string, me: Me | null) {
 
   const op = useCallback(
     async (nodeId: string, values: Record<string, unknown>, action: string, label: string) => {
+      if (readOnlyRef.current) return "forbidden";
       if (!actor) return "not-ready";
       clock.current += 1;
       const c = clock.current;
@@ -220,6 +224,7 @@ export function useRoom(projectId: string, me: Me | null) {
 
   const acquire = useCallback(
     async (nodeId: string, label: string, heartbeat = false) => {
+      if (readOnlyRef.current) return false;
       if (!session) return false;
       const { data } = await supabase.rpc("acquire_lease", {
         _project: projectId, _node: nodeId, _session: session, _ttl: LEASE_TTL, _label: label, _heartbeat: heartbeat,
@@ -239,6 +244,7 @@ export function useRoom(projectId: string, me: Me | null) {
 
   const setLock = useCallback(
     async (nodeId: string, mode: NodeLock["mode"] | null, allowed: string[], label: string) => {
+      if (readOnlyRef.current) return false;
       const { data, error } = await supabase.rpc("set_node_lock", { _project: projectId, _node: nodeId, _mode: mode as string, _allowed: allowed, _label: label });
       if (error || data !== "ok") { toast.error("Only the person who locked it or the owner can change this lock."); return false; }
       if (mode === null) setLocks((p) => { const c = { ...p }; delete c[nodeId]; return c; });

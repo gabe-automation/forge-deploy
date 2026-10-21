@@ -71,6 +71,7 @@ export function Whiteboard(p: {
   const [histVer, setHistVer] = useState(0);
   void histVer;
   function wop(id: string, values: Record<string, unknown>, action: string, lbl: string) {
+    if (p.readOnly) return Promise.resolve("forbidden");
     const cur = p.nodes[id];
     const before: Record<string, unknown> = cur && !val(cur, "deleted", false) ? Object.fromEntries(Object.keys(values).map((k) => [k, val<unknown>(cur, k, null)])) : { deleted: true };
     const step = { id, before, after: values, label: lbl };
@@ -251,7 +252,8 @@ export function Whiteboard(p: {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") { e.preventDefault(); undo(); return; }
       if (sel && !p.readOnly && !selLocked && !selPin && (e.key === "Delete" || e.key === "Backspace")) { wop(sel.id, { deleted: true }, "deleted", label(sel)); select(null); }
       const map: Record<string, Tool> = { v: "select", h: "hand", k: "task", s: "sticky", r: "rect", d: "decision", o: "ellipse", a: "arrow", c: "code", i: "api", t: "text", f: "frame", p: "pen" };
-      if (!e.metaKey && !e.ctrlKey && map[e.key]) setTool(map[e.key]!);
+      const nextTool = map[e.key];
+      if (!e.metaKey && !e.ctrlKey && nextTool && (!p.readOnly || nextTool === "select" || nextTool === "hand")) setTool(nextTool);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -308,17 +310,18 @@ export function Whiteboard(p: {
     <div className="relative flex min-h-0 flex-1 flex-col">
       {/* toolbar */}
       <div className="absolute left-1/2 top-3 z-20 flex max-w-[calc(100%-1.5rem)] -translate-x-1/2 items-center gap-1 overflow-x-auto rounded-xl border bg-card p-1 shadow-lift [&>*]:shrink-0">
-        <Button size="icon" variant="ghost" className="size-8" title="Undo (Ctrl+Z)" aria-label="Undo" disabled={p.readOnly || !undoStack.current.length} onClick={undo}><Undo2 className="size-4" /></Button>
+        {!p.readOnly && <><Button size="icon" variant="ghost" className="size-8" title="Undo (Ctrl+Z)" aria-label="Undo" disabled={p.readOnly || !undoStack.current.length} onClick={undo}><Undo2 className="size-4" /></Button>
         <Button size="icon" variant="ghost" className="size-8" title="Redo (Ctrl+Y)" aria-label="Redo" disabled={p.readOnly || !redoStack.current.length} onClick={redo}><Redo2 className="size-4" /></Button>
         <span className="mx-1 h-6 w-px bg-border" />
-        {tools.map(({ t, icon: I, k, name }) => (
+        </>}
+        {tools.filter(({ t }) => !p.readOnly || t === "select" || t === "hand").map(({ t, icon: I, k, name }) => (
           <button key={t} title={`${name} (${k})`} aria-label={name} disabled={p.readOnly && t !== "select" && t !== "hand"} onClick={() => setTool(t)}
             className={`grid size-8 place-items-center rounded-lg disabled:opacity-40 ${tool === t ? "bg-primary text-primary-foreground" : "hover:bg-secondary"}`}>
             <I className="size-4" />
           </button>
         ))}
         <span className="mx-1 h-6 w-px bg-border" />
-        {COLORS.map((c) => (
+        {!p.readOnly && <>{COLORS.map((c) => (
           <button key={c} aria-label={`Color ${c}`} onClick={() => { setColor(c); if (sel && !selLocked && !p.readOnly) wop(sel.id, { color: c }, "recolored", label(sel)); }}
             className={`size-5 rounded-full border ${color === c ? "ring-2 ring-ring ring-offset-1" : ""}`} style={{ background: c }} />
         ))}
@@ -333,7 +336,7 @@ export function Whiteboard(p: {
             <DropdownMenuItem onClick={() => template("bugs")}>Bug triage</DropdownMenuItem>
             <DropdownMenuItem onClick={() => template("retro")}>Sprint retrospective</DropdownMenuItem>
           </DropdownMenuContent>
-        </DropdownMenu>
+        </DropdownMenu></>}
       </div>
 
       {/* selection bar */}

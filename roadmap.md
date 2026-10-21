@@ -22,7 +22,8 @@
 - [x] HTML / CSS / Script snippets for every block type; new blocks arrive pre-styled like template blocks
 
 ## Device support
-- [ ] Adapt workspace and editor for phones and tablets; enforce phone viewing-only access and verify.
+- [x] Adapt workspace and editor for phones and tablets; phone viewing-only guards cover project creation, page edits, whiteboards, chat, publishing, and shared text. Device tests passed; public pages checked at phone/tablet/desktop widths.
+- [ ] Verify signed-in phone viewing and tablet editing end to end — blocked until the user signs in to the preview (no matching account for managed test sign-in).
 
 ## Backlog (deferred)
 
